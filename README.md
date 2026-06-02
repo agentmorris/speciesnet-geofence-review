@@ -1,8 +1,3 @@
----
-name: speciesnet-geofence-review
-description: One-off tooling for reviewing geofence-rule change suggestions for SpeciesNet.
----
-
 # SpeciesNet geofence review
 
 This repo holds tools used to validate a batch of suggested changes to the [SpeciesNet geofence](https://github.com/google/cameratrapai/blob/main/data/model_package/geofence_release.json) against the current geofence and taxonomy, and to walk through each suggestion in a local browser UI.
