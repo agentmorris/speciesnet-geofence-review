@@ -883,6 +883,31 @@ def _round_5_items() -> list[dict]:
 GRIZZLY_KEEP_STATES = {"AK", "ID", "MT", "WA", "WY"}
 
 
+def apply_round_9(queue: list[dict], decisions: dict, now: str,
+                  skipped: list[dict] | None = None) -> dict[str, int]:
+    """Round 9 (2026-06-02): convert every country- or state-level remove
+    proposal for the African wildcat to reject; the systematic decision for
+    African wildcat is the single source of truth.  Overrides the round-1
+    accepts."""
+    counts = {"african-wildcat-block-obsolete": 0}
+    for e in queue:
+        if e.get("binomial") != "felis silvestris lybica":
+            continue
+        if e["source"] == "systematic":
+            continue
+        if e["kind"] != "remove":
+            continue
+        decisions[e["id"]] = {
+            "outcome":      "reject",
+            "notes":        "made obsolete by a custom decision for a systematic proposal",
+            "bulkRound":    9,
+            "bulkRuleName": "african-wildcat-block-obsolete",
+            "updatedAt":    now,
+        }
+        counts["african-wildcat-block-obsolete"] += 1
+    return counts
+
+
 def apply_round_8(queue: list[dict], decisions: dict, now: str,
                   skipped: list[dict] | None = None) -> dict[str, int]:
     """Round 8 (2026-06-02):
@@ -1512,6 +1537,11 @@ def main() -> None:
     print("\n=== Round 8 ===")
     c8 = apply_round_8(queue, decisions, now, skipped=skipped)
     for rule, n in c8.items():
+        print(f"  {rule}: {n} decisions")
+
+    print("\n=== Round 9 ===")
+    c9 = apply_round_9(queue, decisions, now, skipped=skipped)
+    for rule, n in c9.items():
         print(f"  {rule}: {n} decisions")
 
     if skipped:
