@@ -1,0 +1,437 @@
+# Initial prompt
+
+I maintain an AI model (SpeciesNet) for classifying wildlife in images from motion-triggered wildlife cameras; the code associated for that model is here:
+
+c:\git\cameratrapai
+
+The model is global, but when a user runs it, in order to avoid predicting species in areas where they clearly don't belong, the user typically specifies the country from which their images come, and if the model predicts a taxon that is not allowed in that country, we walk up the taxonomic tree until we get to a taxon that is allowed.  The rules about what taxa are/aren't allowed in specific locations are hard-coded in a .json file.  We call this process "geofencing".  For example, if the model predicts a European deer in the US, we would check the geofence, see that this species is not allowed, but its genus (cervus) is, so we would output "cervus genus".  If the same prediction happened in Costa Rica, we would see that neither the species nor genus are allowed, but the family is, so we would output "cervidae family".  The rules operate at country level, except in the US, where we have both country- and state-level rules.
+
+The geofencing rules are defined in this .json file:
+
+C:\git\cameratrapai\data\model_package\geofence_release.json
+
+The list of taxa that can be output by the model is in this file:
+
+C:\git\cameratrapai\data\model_package\always_crop_99710272_22x8_v12_epoch_00148.labels.txt
+
+The full taxonomy that might be output by the model+geofence - which incldues all taxa produced by the model, plus all parent taxa - is in this file:
+
+C:\git\cameratrapai\data\model_package\taxonomy_release.txt
+
+The geofence is fairly complicated to maintain; we generated the initial set of geofence rules based on observations from a variety of global databases.  That initial geofence is here:
+
+C:\git\cameratrapai\data\geofence_base.json
+
+Whenever we notice something is wrong, or when a user submits an issue (a taxon being allowed/blocked where it shouldn't), we add a "fix" to this file:
+
+C:\git\cameratrapai\data\geofence_fixes.csv
+
+...and when it's time to release a new model package, we run the following script, which applies all the fixes from the .csv file to the base file, producing "geofence_release.json":
+
+C:\git\cameratrapai\speciesnet\scripts\build_geofence_release.py
+
+The following .py file is a notebook that I use to test functionality related to geofencing, and sometimes to generate rules for geofence_fixes.csv in bulk:
+
+C:\git\MegaDetector\notebooks\wi_utils_driver.py
+
+That notebook makes calls into this module, which has a bunch of utilities related to maintaining/modifying/searching the geofence:
+
+C:\git\MegaDetector\megadetector\utils\wi_taxonomy_utils.py
+
+A user has run a number of checks to find likely issues in our geofence, but they all require manual review.  The task you are going to help me with is reviewing the changes proposed in the following files, all in the current folder:
+
+Systematic_review.json
+Canada_review.json
+USA_review.json
+USA_State_review.json
+
+I will call these the "suggestion files" collectively.
+
+"Systematic_review.json" is a list of species that seem to be some kind of global mistake, e.g. a species that is allowed everywhere but shouldn't be.  The others are specific to the US and Canada.  I am only responsible for reviewing these rules, others will be looking at other countries.
+
+The user generated these .json files, I didn't make the format, but it looks self-explanatory.  In the regional files, there appear to be keys called "addSuggestions"  and "removeSuggestions", listing taxa that are missing or incorrectly allowed, respectively.    It looks like "Systematic_review.json" is organized by taxon, where each taxon has some number of keep/remove/add rules.  In all cases the latin names, GUIDs, and current state of block/allow should match what's in the metadata files I explained earlier.  I want you to help me with the following:
+
+1. Document the formats of these files in a README file, and double-check that all the latin names / GUIDs match taxonomy_release.txt.  Also write code to check that the rules implied in these files match the rules in the geofence... for example, if "african wild cat" has a list of "keepcountries", that implies that it's currently allowed in those countries.  Check this.  Similarly, if a species is proposed for removal from Wyoming, that implies that it's currently allowed in Wyoming.  Don't proceed until we double-check that there is general agreement between the current state of the geofence and the suggestion files, i.e. if the user totally misinterpreted how the geofence works, I don't want to proceed with manual review.
+
+2. I want a UI that will make this as fast as possible for me.  This can be a one-off thick client tool, a one-off browser-based tool, or a 3P tool that you think I should use.  It only needs to run locally, i.e. I don't need to serve this on any other machine.  I'm on Windows, so if it matters, this only ever has to run on Windows.  I want to be able to quickly go through the suggestions, and for each suggestion, I want a link to search Google for, e.g. "ash-throated flycatcher in Canada" (that's one of the taxa whose removal is suggested for Canada).  And I want a way to quickly mark an outcome, which might be: ignore, allow species, block species, allow genus, block genus, etc.  I.e., even if the suggestion is at the species level, the outcome of my review might be to allow/block an entire family.  Whatever changes I make should be immediately saved somewhere, but that could be a .json file, a database, etc., whatever is easiest, as long as we can export it to some kind of .json file at the end.
+
+3. Later you will help me turn that data into new rules in geofence_fixes.csv, but I don't want to work on that part yet.
+
+Throughout this project, err on the side of asking questions, I am not in a hurry.
+
+If you need to write code, you can use any language you like, though I slightly prefer Python for analysis code.  But mostly this is a one-off project, so I'm not going to have to look at the code, and therefore I don't have a strong opinion on language/framework/etc.  But FWIW, if you use Python, you are in a conda environment, pip install whatever you need, but track in requirements.txt.
+
+# Environment notes
+
+mamba create -n speciesnet-geofence-review python=3.12 pip -y && mamba activate speciesnet-geofence-review
+
+--
+
+This is already really helpful, and even by looking at a few pages, I can tell that I don't want to actually use the UI to go through all of them.  What I want is to look at one or two, then come back here to tell you to make a change that can't easy be described in the UI, and have you updated the backend data directly, and update the set of undecided proposals for me to review a few more.  For example, I can see already that a number of proposals are just removing domestic dogs from a country or a state, I'm going to decline all of those suggestions.  And for the first systematic review ("African wild cat"), I'm not going to want to review each country code individually, I want to just say something to you like "this should be allowed everywhere in Africa and Asia (including Turkey), and blocked on all other continents", and have you turn that into country codes.  When I make a bulk change like this, the fact that this was part of a bulk update - and a summary of the update - should be recorded in the "notes" field for every suggestion that this impacts.  After a few round of this I think we'll have handled a huge number of the 5001 suggestions.
+
+So let's start with the following:
+
+* For any suggestions involving blocking domestic dogs, reject the suggestion (domestic dogs should be allowed everywhere)
+* For any suggestions involving blocking domestic chickens, reject the suggestion (domestic chickens should be allowed everywhere)
+* The African wildcat should be allowed everywhere in Africa and Asia (including Turkey), and blocked on all other continents
+
+--
+
+Re-organize each proposal page into the following sections, in the following order...
+
+* Taxonomy (exactly the way it is now).
+
+* Current geofence (all allow/block rules, collapsed by default, exactly the way it is now).
+
+* Original proposal... the heading here should be identical to what's there now (a tag, a description, and a quick summary), but this section should also have two lists of countries: the new allow/block rules proposed.  There should be no red/green coloring, it's just what's proposed as new allow/block rules, and it should not be interactive.  There should be no concept of "keep", i.e. I don't want to see anything that isn't proposed as a change.  This section is a read-only representation of the proposal we read from the original "suggestion files".
+
+* Search (exactly as it is now).  The only change I want to make here is that for the "systematic" rules, instead of searching for the word "global", the links should search for the word "range", i.e. "felis silvestris lybica range" rather than "felis silvestris lybica global".
+
+* Decision... this is replacing the "change decision" section that is currently in the output page.  This section should have options called "accept", "reject", and "custom".  Remove the "ignore" option, I'm not sure how that's different than "reject".  "Custom" should be any set of changes that I communicate to you in natural language that does not correspond to wholesale accept/reject of the proposal, like we just did for the african wild cat.  If the "accept" option is selected, that means I'm accepting the original proposal with no modifications.  If "reject" is selected, that means I'm rejecting the original proposal and not replacing it with any other rules.  If "custom" is selected, it should show me the new block or allow rules that we're creating, but not the "keep" cases, I only want to see what we're changing.  These should not be interactive, the only way I will change "custom" decisions is by talking to you.  If we make a "custom" decision, when I visit that page, "custom" should be selected.  If I click "accept" at that point, the *content* of the "custom" decision should be retained (in case I just clicked "accept" by accident), but in that case when we export rules later, the "custom" rules will have no effect.
+
+For the "african wild cat" systematic suggestion, I should see the "custom" decision option selected.  For the "block domestic dogs in connecticut" suggestion, I should see the "reject" decision option selected, with the correct explanation in the notes field, indicating that this was part of a bulk action.
+
+--
+
+Strip the round number from the notes.  If we make a custom decision for a single proposal, like we did for the african wild cat, it should not include the word "bulk"; the notes there only apply to this proposal.  If we make a custom decision that applies to many proposals (like domestic dogs), the word "bulk" (or a synonym) *should* be in the notes, i.e. it should be indicated that this was not a change I made *just* for, e.g., domestic dogs in connecticut.  "Bulk" feels like the right word to indicate "this custom decision applied to multiple proposals".
+  
+--
+
+* For any suggestions involving blocking domestic dogs, reject the suggestion (domestic dogs should be allowed everywhere)
+* For any suggestions involving blocking domestic chickens, reject the suggestion (domestic chickens should be allowed everywhere)
+* The African wildcat should be allowed everywhere in Africa and Asia (including Turkey), and blocked on all other continents
+
+--
+
+* For any suggestions involving blocking domestic geese, reject the suggestion (domestic geese should be allowed everywhere)
+* For any suggestions involving blocking domestic goats, reject the suggestion (domestic goats should be allowed everywhere)
+* For any suggestions involving blocking domestic cattle, reject the suggestion (domestic cattle should be allowed everywhere)
+* For any suggestions involving blocking domestic donkey, reject the suggestion (domestic donkeys should be allowed everywhere)
+* For any suggestions involving blocking domestic mules, reject the suggestion (domestic mules should be allowed everywhere)
+* For any suggestions involving blocking domestic pigs, reject the suggestion (domestic pigs should be allowed everywhere)
+
+--
+
+Next I am going to provide a batch of custom decisions; each one of these items is a response to a "systematic" proposal.  If I say "Central America", I mean Belize, Costa Rica, El Salvador, Guatemala, Honduras, Nicaragua, and Panama.  If I say "North America", I mean the US, Canada, and Mexico.  Neither case includes Caribbean countries.  If I say "Africa", that includes Madagascar unless I say otherwise.  If I say "Asia", that includes Russia unless I say otherwise.  In many cases I will include multiple rules on a line, in those cases the first rule will the species referred to by one of the "systematic" proposals, the other rules in the same line will be the genus and/or family for the same species (but may have slightly different geographic changes).
+
+Read through all of the following before applying any of them, and ask me if there are any edge cases that aren't clear.  Check that you can match each one to the corresponding systematic proposal.  If I refer to the genus/family in an item, verify that the genus and family actually match the species.  If a genus/family don't match the species, that's likely a mistake on my part.  Ask for clarifications before applying any of these decisions.
+
+Block the ashy-headed babbler in every country other than the Philippines. Block the genus trichastoma in every country not in Asia. Block the family Pellorneidae in every country not in Asia or Africa.
+
+Block the brazilian squirrel in every country outside of South America, Central America, and Mexico. Block the genus guerlinguetus in every country outside of South America, Central America, and Mexico.
+
+Block the common woolly monkey in every country outside of South America, Central America, and Mexico. Block the genus lagothrix in every country outside of South America, Central America, and Mexico. Block the family atelidae in every country outside of South America, Central America, and Mexico.
+
+Block the eastern woodrat in every country other than the United States. Block the genus neotoma in every country other than the United States.
+
+Block the limestone wren-warbler in every country outside of Asia (don't include Russia as part of Asia for this decision, i.e., block this species in Russia). Block the genus Turdinus in every country outside of Asia (don't include Russia as part of Asia for this decision, i.e., block this species in Russia).
+
+Block the western screech-owl in every country other than Canada, the United States, Mexico, Guatemala, El Salvador, Honduras, Nicaragua, and Costa Rica.  Note that this one appears as two separate proposals, one with an outdated GUID.
+
+Block the White-vented shama in every country other than the Philippines.  Block the genus kittacincla in every country not in Asia (in this case, "Asia" doesn't include Russia, i.e., block in Russia).
+
+Block the yellow-billed magpie in every country other than the United States, and in every US state other than California.
+
+Block the archer's robin-chat in every country not in Africa.  Block the genus Dessonornis in every country not in Africa.  
+
+Block the Black-eared Ground-Thrush in every country not in Africa.  Block the genus geokichla in every country in the western hemisphere.
+
+Block the black-winged trumpeter in every country other than Brazil and Bolivia.  Block the genus Psophia in every country not in South America.  Block the family Psophiidae in every country not in South America.
+
+Block the bullock's oriole in every country not in North America or Central America.  Block the genus icterus in every country in the Eastern hemisphere.  Block the family icteridae in every country in the Eastern hemisphere
+
+Block the Chinese goral in every country other than China, Myanmar, India, Thailand, Vietnam, and Laos.  Block the genus naemorhedus in every country not in Asia (including Russia, i.e., don't block this species in Russia).
+
+Block the Chinese serow in every country other than China, Myanmar, Thailand, Vietnam, Laos, and Cambodia.  Block the genus capricornis in every country not in Asia.
+
+Block the grey-necked wood-rail in every country not in Central America or South America.  Block the genus aramides in every country not in Central America or South America.
+
+Block the horsfield's tarsier in every country other than Indonesia.  Block the genus tarsius in every country other than Indonesia.  Black the family tarsiidae in every country other than Brunei, Indonesia, Malaysia, and the Philippines.
+
+Block the long-nosed mongoose in every country not in Africa.  Block the genus herpestes in every country in the Western hemisphere.  Block the family herpestidae in every country in the Western hemisphere.
+
+Block the ochre-winged trumpeter in every country other than Brazil, Bolivia, Peru, and Colombia.
+
+Block the olive-winged trumpeter in every country other than Brazil, Bolivia, Peru, and Colombia.
+
+Block the purús red howler monkey in every country other than Brazil, Bolivia, Peru, and Colombia.
+
+Block the streaked tuftedcheek in every country not in South America.  Block the genus pseudocolaptes in every country not in South America.  Block the family furnariidae in every country outside of South America, Central America, and Mexico.
+
+Block the australian ibis in every country other than Australia.  Block the genus Threskiornis in every country in the Western hemisphere.  
+
+Block the eastern moustached laughingthrush in every country other than China, Myanmar, India, Thailand, Vietnam, and Laos.  Block the genus Garrulax in every country not in Asia.  Block the family leiotrichidae in every country in the western hemisphere.
+
+Block the moonrat in every country other than Malaysia, Myanmar, Thailand, and Indonesia.  Block the genus echinosorex in every country other than Malaysia, Myanmar, Thailand, and Indonesia.  Block the family erinaceidae in every country in the western hemisphere.
+
+Block the streaked wren-babbler in every country other than Bangladesh, Cambodia, China, India, Laos, Malaysia, Myanmar, Thailand, and Vietnam.
+
+Block the saddleback tamarin in every country not in South America.  Block the genus leontocebus in every country not in South America.  Block the family callitrichidae in every country not in South America or Central America.
+
+Block the white/crandall's saddleback tamarin in every country not in South America.  Block the genus saguinus in every country not in South America.
+
+Block the sumatran mountain muntjac in every country other than Indonesia.  Block the genus muntiacus in every country not in Asia.
+
+Block the helmeted guineafowl in every country not in Africa.  Block the genus numida in every country not in Africa.  Block the family numididae in every country not in Africa.
+
+Block the Asian badger in every country not in Asia.  Block the genus meles in every country not in Asia or Europe.
+
+Block the common gallinule in every country in the Eastern hemisphere.  
+
+Block the northern harrier outside of Canada, the United States, Mexico, Colombia, Venezuela, and the Caribbean. 
+
+--
+
+Re: limestone wren-warbler...
+
+You are correct, I meant limestone wren-babbler.
+
+Re: helmeted guineafowl...
+
+I probably should have done this the other way around, i.e. rejected the one that you flagged as a stale GUID, and applied this custom decision to the one that has the current GUID.  Please do that, reject the stale GUID and change the decision for the non-stale GUID to the custom decision I described in my previous message.  At the end of this process the most important thing is that we can generate the list of block/allow rules for the current taxonomy, so although we would have figured this out later from the common name, it's best to attach the decision to the non-stale GUID.
+
+Re: western screech-owl...
+
+Reject the proposal with the stale GUID, apply the custom decision to the proposal with the current GUI.
+
+Re: northern harrier...
+
+Yes, your interpretation of "Caribbean" is fine.
+
+Re: Eurasian badger... 
+
+Leave my "reject" decision in place for #149 ("Eurasian badger") (meles meles).  There is a separate item for "asian badger" (meles leucurus) (#44), apply the custom decision I described in my previous message to proposal #44.  Apply the genus-level rule as I described it as well.
+
+**
+
+I don't understand your message about "effectively no-ops because the taxon doesn't naturally occur in the targeted region".  The point of this whole exercise is to block things outside their naturally occurring regions (being pretty conservative about not excessively blocking).  Can you clarify what you meant here, i.e. why you were checking on the naturally occurring regions for these taxa?  I don't want you to be doing any research about natural regions unless we talk about it.
+
+**
+
+Also, I noticed one mistake in my previous message... I wrote:
+
+"Block the brazilian squirrel in every country outside of South America, Central America, and Mexico. Block the genus guerlinguetus in every country outside of South America."
+
+I should have written:
+
+"Block the brazilian squirrel in every country outside of South America, Central America, and Mexico. Block the genus guerlinguetus in every country outside of South America, Central America, and Mexico."  
+
+It doesn't make sense to block a genus in places where we're *not* blocking a species within that genus.  Before proceeding, double check that I didn't make this kind of mistake anywhere else.
+
+**
+
+Also I didn't make this explicit, but the requests I made here should become the "notes" fields for the custom decisions we're adding in this batch. 
+
+**
+
+Don't proceed to make these changes until you've (1) clarified my question above about "effectively no-ops", and (2) double-checked my work for the kind of mistake I made wrt the brazilian squirrel.
+
+--
+
+Great.  Next, I want you to look through the undecided block rules and see whether any of them have already been fixed by the systematic rules we just created.  For example, one of the rules from the "Canada pack" proposes blocking the eastern moustached laughingthrush in Canada, but we just created new rules that will block the species (and the genus, and the family) in Canada.  In all of these cases, mark the proposal as rejected with a note that says this is now redundant with a decision made on a systematic proposal.  This does not apply to add rules, only block rules, since so far today we have only created block rules.
+
+I also want you to look for any proposals related to blocking species in the family pittidae.  Reject those proposals with a note saying "this proposal likely uses an outdated geofence; in the 4.0.2a geofence, pittidae has been blocked in most regions where it doesn't belong".
+
+--
+
+I am going to provide another round of custom decisions.  All of these should match to proposals in the "USA country pack" or "Canada country pack".  I have not yet reviewed the US state packs, so some of these may appear there also.  As we did with the previous round of custom decisions, process these to make sure they all make sense before applying any of them: make sure you can match these to proposals, and make sure that if I list a taxonomic level other than species, that proposal actually refers to a species in that higher-level taxon.  All of these should result in "custom" decisions, with my description here appearing in notes, just like we did last time.
+
+First check these, if there are no ambiguities, process them.  Then we will see which of these render state-specific rules irrelevant, don't do that yet.
+
+Allow the brown rat in every country in the world.  In this case, specifically create allow rules for every US state. 
+
+Allow the house mouse in Canada and in every US state (specifically create an allow rule for every US state).
+
+Block the black-throated magpie-jay in Canada.  Block the genus cyanocorax in Canada.
+
+Allow the great kiskadee in Texas, but in no other US states.
+
+Allow the ocelot in Texas, but in no other US states.
+
+Block the argentine gray fox in the United States.  Block the genus lycalopex in the United States.
+
+Block the australian zebra finch in the United States.  Block the genus taeniopygia in the United States.  Block the family estrildidae in the United States.
+
+Block the bearded wood-partridge in the United States.  Block the genus dendrortyx in the United States.
+
+Block the black flying squirrel in the United States.  Block the genus aeromys in the United States.
+
+Block the eastern great tit in the United States.  Block the genus parus in the United States.
+
+Block the large-headed capuchin in the United States.  Block the genus sapajus in the United States.  Block the family cebidae in the United States.
+
+Block the lesser tropical ground squirrel in the United States.  Block the genus notocitellus in the United States.
+
+Block the mottled owl in the United States.  Block the genus ciccaba in the United States.
+
+Block the pectoral sparrow in the United States.  Block the genus arremon in the United States.
+
+Block the redness tree squirrel in all countries not in Africa.  Block the genus funisciurus in all countries not in Africa.
+
+Block the siberian blue robin in all countries in the Western hemisphere.  Block the genus larvivora in all countries in the Western hemisphere.
+
+Block the siberian chipmunk in all countries not in Asia or Europe.  Block the genus eutamias in all countries not in Asia or Europe.
+
+Block the thick-billed warbler in the United States.  Block the genus arundinax in the United States.
+
+Block the three-striped ground squirrel in all countries other than Indonesia, Malaysia, and Thailand.  Block the genus Lariscus in all countries not in Asia.
+
+Block the variable squirrel in all countries not in Asia.  Block the genus callosciurus in all countries not in Asia.
+
+--
+
+Re: brown rat and house mouse...
+
+Correct, this is a custom decision for the the Canada proposal.
+
+
+Re: black-throated magpie jay...
+
+Correct, I am making a custom decision here for the Canada proposal, I already entered a non-custom decision for the US proposal.
+
+
+Re: Australian zebra finch...
+
+I made a mistake here.  Mark the Canada proposal as the custom decision, I should have written the following:
+
+"Block the Australian zebra finch in all countries other than Australia.  Block the genus Taeniopygia in all countries other than Australia and Indonesia. Block the family Estrildidae in all countries in the Western hemisphere."
+
+Reject the US proposal, with the note "made redundant by a custom decision for a Canada proposal".
+
+
+Re: great kiskadee...
+
+Correct, I already rejected the Canada proposal, I only want you to add a rule to allow it in Texas (i.e., allow it in the United states, with a state-level allow-list that only includes Texas).
+
+
+Re: state-level allow rules...
+
+Yes, you understood this correctly.  This is not necessary in cases where a species was previously not allowed at all in the US, but in this case, because it was already allowed in some states, it's implicitly blocked in others, and the way we fix this (when we translate this all into geofence rules) is by creating comprehensive state-level allow rules.
+
+
+Re: allow rules for texas...
+
+Yes, you understood this correctly.
+
+
+--
+
+Great.  I want to add a new feature to the UI that lets me filter which proposals are visible (i.e., which proposals I'm cycling through), with the following options:
+
+Class: aves/mammalia/both
+Proposal type: add/reject/both
+Decision: accept/reject/custom/undecided/all
+
+I'm not too picky about how this looks, whether they are checkboxes or radio buttons, whether I have to click apply vs taking effect immediately, etc.  I don't really care how you handle the progress bar or the display of the number of items in the upper-left, do anything reasonable.  The main goal is to be able to cycle through, for example, just unhandled mammal reject proposals, or just accepted bird addition proposals, etc.
+
+
+--
+
+All of the following are in response to state-level proposals.
+
+Reject all state-level proposals to add the house mouse, with the note "made obsolete by a country-level custom decision".
+
+Reject all state-level proposals to block domestic sheep, with the note "domestic species, allowed everywhere".
+
+Reject all state-level proposals to block humans, with the note "humans allowed everywhere"
+
+Reject all state-level proposals to add plains zebra, with the note "no wild zebra in the US".
+
+Block mouflon in all US states, and block mouflon in all countries not in Asia or Europe.  Add this as a custom decision for the Hawaii proposal to block mouflon; reject all other mouflon-add proposals with a note indicating "accepted as a custom decision on another proposal".
+
+In response to the Alabama proposal to block the raccoon dog, add a country-level block rule as a custom decision.  Reject all other proposals to block the raccoon dog, with the note "accepted as a custom decision on another proposal".
+
+In response to the California proposal to block the wild goat, add a country-level block rule and block rules for every state as a custom decision.  Reject all other proposals to block the wild goat, with the note "accepted as a custom decision on another proposal".
+
+
+--
+
+Re: mouflon... sorry, I should have said the following:
+
+Block mouflon in all US states, and block mouflon in all countries not in Asia or Europe.  Add this as a custom decision for the Hawaii proposal to block mouflon; reject all other **state-level** mouflon-add proposals with a note indicating "accepted as a custom decision on another proposal".
+
+Re: wild goat... the same, I should have said:
+
+In response to the California proposal to block the wild goat, add block rules for every state as a custom decision.  Reject all other **state-level** proposals to block the wild goat, with the note "accepted as a custom decision on another proposal".
+
+--
+
+I want to add another filter to the filtering area, specifically for "common name contains", with a text box where I can type a string.  In practice I will use this to filter to, for example, all proposals related to "grizzly bear", but it's easier to have a text box than to have, e.g., a combo box with every species.  I don't care whether the filter takes effect after I type each character, or on blur, or on pressing enter.
+
+--
+
+In response to the Washington DC proposal for "emperor penguin", add a custom decision with a country-level block rule (block emperor penguins in the US).  If there are any other state-level proposals related to the emperor penguin, reject them, with the note "handled as a custom decision on another proposal".
+
+In response to the Alabama proposal to block grizzly bears, mark it as a custom decision, and create state-level allow rules for Alaska, Idaho, Montana, Washington, and Wyoming, and state-level block rules for all other states (the block rules are technically redundant in this case, since there weren't previously any allow rules, but I'm err'ing on the side of being comprehensive).  Mark all other proposals related to grizzly bears as rejected, with the comment "handled as a custom decision on another proposal".
+
+--
+
+Re: grizzly bears...
+
+Sorry, I should have said:
+
+Mark all other **state-level** proposals related to grizzly bears as rejected, with the comment "handled as a custom decision on another proposal".
+
+I.e., don't touch the country-level rules for US/CAN.
+
+Re: Alabama custom rule... yes, you have this correct.
+
+--
+
+Great, I'm not going to review any more state-level rules now, so I want to wrap up this task.  A few small changes:
+
+* I want to move the "suggestion files" (the four .json files) out of this folder, into the data folder (G:\temp\speciesnet-geofence-review-data).  Move the .json files, and update any code that refers to them.
+
+* To make the code a little more maintainable (or to make it easier for me to repeat this task on another computer in the future), define "G:\temp\speciesnet-geofence-review-data" as a base folder in just one place, and convert any other path names in the code to be relative to that folder.  Do the same for the README, just add a note that says that filenames are all in the data folder, which is G:\temp\speciesnet-geofence-review-data at the time we are writing this README.
+
+* In the README, change references to files in this folder:
+
+c:\git\cameratrapai
+
+...to links to the public repo:
+
+https://github.com/google/cameratrapai/
+
+For example, this:
+
+SpeciesNet geofence (`c:\git\cameratrapai\data\model_package\geofence_release.json`)
+
+...should become this:
+
+[SpeciesNet geofence](https://github.com/google/cameratrapai/blob/main/data/model_package/geofence_release.json)
+
+* I want to send all of my decisions to the user who proposed them.  decisions.json is a perfect format, so we don't need to invent a new file just for sharing, but I have one requested change to the format: the systematic rules only use the "rank" as a key (e.g. systematic:systematic:1), and the country/state rules use the GUID as a key (e.g. usa_state:USA-AR:remove:601cf098-9876-4912-84bb-0926834305e9).  These are both fine from a technical perspective, but in order to make it easier for a human to scan the .json file, I'd like to (a) add the common name of the species to each country/state rule (as a new field that none of our code will read, no need to change the key).  For example, this:
+
+    "usa_state:USA-AR:remove:601cf098-9876-4912-84bb-0926834305e9": {
+      "outcome": "reject",
+      "notes": "handled as a custom decision on another proposal",
+      "bulkRound": 8,
+      "bulkRuleName": "grizzly-bear-other-state-redundant",
+      "updatedAt": "2026-06-02T04:41:26.469939+00:00"
+    },
+
+...should become:
+
+    "usa_state:USA-AR:remove:601cf098-9876-4912-84bb-0926834305e9": {
+      "outcome": "reject",
+      "notes": "handled as a custom decision on another proposal",
+      "bulkRound": 8,
+      "bulkRuleName": "grizzly-bear-other-state-redundant",
+      "updatedAt": "2026-06-02T04:41:26.469939+00:00",
+      "commonName": "grizzly bear"
+    },
+ 
+And ditto for the systematic proposals... this:
+
+    "systematic:systematic:1": {
+      "outcome": "custom",          
+      ...
+      
+...should become:
+
+    "systematic:systematic:1": {
+      "outcome": "custom",
+      "commonName": "african wild cat",
+      ...
+
+In both cases the new "commonName" field is redundant, so no code needs to change.

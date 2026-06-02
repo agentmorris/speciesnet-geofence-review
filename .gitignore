@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.playwright-mcp/
+review-app-*.png
+.claude
+.gemini
+

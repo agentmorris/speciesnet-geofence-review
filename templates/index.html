@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Geofence review</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header id="topbar">
+    <div id="progress">
+      <span id="progress-text">Loading...</span>
+      <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+    </div>
+    <div id="status">
+      <span id="save-status">Idle</span>
+    </div>
+    <div id="nav-buttons">
+      <button id="btn-prev" title="Previous (k or LeftArrow)">&larr; Prev</button>
+      <span id="jump-controls">
+        <input id="jump-input" type="number" min="1" placeholder="#" />
+        <button id="btn-jump">Go</button>
+      </span>
+      <button id="btn-next" title="Next (j or RightArrow)">Next &rarr;</button>
+    </div>
+  </header>
+
+  <div id="filter-bar">
+    <label>Class:
+      <select id="filter-class">
+        <option value="both">both</option>
+        <option value="aves">aves (birds)</option>
+        <option value="mammalia">mammalia</option>
+      </select>
+    </label>
+    <label>Type:
+      <select id="filter-type">
+        <option value="all">all</option>
+        <option value="add">add</option>
+        <option value="remove">remove</option>
+        <option value="systematic">systematic</option>
+      </select>
+    </label>
+    <label>Decision:
+      <select id="filter-decision">
+        <option value="undecided">undecided</option>
+        <option value="all">all</option>
+        <option value="accept">accept</option>
+        <option value="reject">reject</option>
+        <option value="custom">custom</option>
+      </select>
+    </label>
+    <label>Name contains:
+      <input id="filter-name" type="text" placeholder="e.g. grizzly bear" autocomplete="off" />
+    </label>
+    <span id="filter-info"></span>
+  </div>
+
+  <main id="main">
+    <section id="card-empty" class="card hidden">
+      <p>No items in queue.</p>
+    </section>
+
+    <section id="card" class="card hidden">
+      <div id="card-header">
+        <div class="title-line">
+          <span id="common-name"></span>
+          <span class="binomial" id="binomial"></span>
+        </div>
+        <div class="subtitle-line">
+          <span id="class-label"></span>
+          <span class="dot">&middot;</span>
+          <span id="source-label"></span>
+          <span class="dot">&middot;</span>
+          <span id="region-label"></span>
+          <span id="binomial-fallback" class="tag tag-warn hidden">stale GUID</span>
+        </div>
+      </div>
+
+      <div id="card-body">
+        <div class="row">
+          <h3>Search</h3>
+          <div id="search-links"></div>
+        </div>
+
+        <div class="row two-col">
+          <div>
+            <h3>Taxonomy</h3>
+            <div id="lineage" class="lineage"></div>
+          </div>
+          <div>
+            <h3>Current geofence</h3>
+            <div id="geofence-summary" class="geofence-summary"></div>
+          </div>
+        </div>
+
+        <div class="row" id="proposal-row">
+          <h3>Original proposal</h3>
+          <div id="proposal-text"></div>
+          <div id="proposal-rules"></div>
+        </div>
+
+        <div class="row" id="decision-row">
+          <h3>Decision</h3>
+          <div id="decision-buttons"></div>
+          <div id="custom-display"></div>
+          <div class="notes-row">
+            <label>Notes:
+              <input id="notes" type="text" placeholder="Optional notes (saved when you leave the field)">
+            </label>
+          </div>
+          <div id="decision-meta"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="bottombar">
+    <div>
+      <label><input type="checkbox" id="auto-advance"> Auto-advance after decision</label>
+    </div>
+    <div id="shortcut-help">
+      <strong>Shortcuts:</strong>
+      j/k or arrows = next/prev &middot;
+      1 = accept &middot;
+      2 = reject &middot;
+      3 = custom &middot;
+      Backspace = clear decision &middot;
+      g = focus jump-to &middot;
+      n = focus notes
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
