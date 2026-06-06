@@ -132,6 +132,7 @@ If both `allow` and `block` exist, both checks must pass.
 | `review_queue.py` | Loads the four suggestion files + taxonomy + geofence and flattens them into a single review queue (hiding the items the verifier categorized as auto-handled). Importable; also runnable for a queue-size sanity print. |
 | `review_app.py` | Local Flask web app for walking through the queue with keyboard shortcuts; auto-saves decisions to `decisions.json` in the data folder. |
 | `bulk_apply.py` | Applies natural-language batches of decisions ("rounds") to `decisions.json`. Each round is its own function. |
+| `export_geofence_fixes.py` | Converts the accept/custom decisions in `decisions.json` into rows for [`geofence_fixes.csv`](https://github.com/google/cameratrapai/blob/main/data/geofence_fixes.csv) and appends them to that file. |
 | `templates/index.html`, `static/{style.css,app.js}` | Frontend for the Flask app. |
 | `requirements.txt` | Python dependencies. |
 
@@ -141,7 +142,29 @@ Run from this folder with the `speciesnet-geofence-review` conda environment act
 
 1. **Verify.** `python verify_suggestions.py` -- one-shot sanity check; produces a mismatch report and a human-readable `verification_inconsistencies.md` listing items the UI auto-handles.
 2. **Review.** `python review_app.py` -- launches a local Flask server on `http://127.0.0.1:5000/` and opens your default browser. The queue starts at the first undecided item; every decision is saved to `decisions.json` immediately.
-3. **Export.** (Future) Convert `decisions.json` into rows for `geofence_fixes.csv`. Not in this repo yet.
+3. **Export.** `python export_geofence_fixes.py` -- converts decisions into geofence-fix rows. See "Export" below.
+
+## Export
+
+`export_geofence_fixes.py` walks `decisions.json` and translates each non-reject decision into one or more rows for [`geofence_fixes.csv`](https://github.com/google/cameratrapai/blob/main/data/geofence_fixes.csv). The CSV's `species` column holds the 5-token semicolon-delimited taxonomy string (`class;order;family;genus;species`, with trailing empty tokens for genus / family-level rules).
+
+How decisions map to rules:
+
+- **`accept`** on a regional `add` proposal → one `allow` row for the proposal's species at the proposal's scope.
+- **`accept`** on a regional `remove` proposal → one `block` row, same shape.
+- **`accept`** on a systematic proposal → one `block` row per country in `removeCountries`.
+- **`custom`** decision → the `custom.allowRules` and `custom.blockRules` lists become rows verbatim (these can be at species / genus / family level).
+- **`reject`** decisions contribute nothing.
+
+Output is grouped for readability:
+
+1. One section per decision that has a non-empty `notes` field -- a blank line, a `# <notes>` comment, then the rows from that decision.
+2. A `# Block rules created <YYYY.MM.DD>` section gathering every block row from accept-without-notes decisions.
+3. A `# Allow rules created <YYYY.MM.DD>` section gathering every allow row from accept-without-notes decisions.
+
+The script appends to the **existing** CSV (it does not rewrite the file). Before writing, it checks whether any new row is a literal duplicate of another new row; duplicates are emitted only once, with a warning naming the decisions that produced them so you can review afterwards.
+
+Use `--dry-run` to print the appended block to stdout instead of writing, and `--out <path>` to point at a different CSV (useful for testing).
 
 ### UI shortcuts
 

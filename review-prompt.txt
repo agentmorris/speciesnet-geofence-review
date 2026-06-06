@@ -435,3 +435,35 @@ And ditto for the systematic proposals... this:
       ...
 
 In both cases the new "commonName" field is redundant, so no code needs to change.
+
+--
+
+Are there any "custom" decisions for which the "notes" field is empty?
+
+--
+
+Next I would like to convert all of these new rules into the format used in:
+
+C:\git\cameratrapai\data\geofence_fixes.csv
+
+The columns in this file are:
+
+species: this is a bit of a misnomer, it may not be a species, it's actually the five-token semicolon-delimited string corresponding to one of the items in taxonomy_release.txt (excluding the GUID and common name).
+rule: "block" or "allow"
+country_code: self-explanatory
+admin1_region_code: this is always a US state or is blank, i.e. "admin1_region_code" really means "state"
+
+The file is not a pure .csv file, it supports:
+
+* Blank lines for readability
+* Comments (lines starting with a "#") to logically group rules together
+
+You should update this file with new rules for the "accept" and "custom" cases from decisions.json.  I would like them grouped as follows for readability:
+
+* For each proposal that should result in changes and has a "notes" field, include a blank line, followed by a #-delimited comment that contains the "notes" field from the corresponding proposal, followed by all the rules corresponding to that proposal.
+* Then add a blank line, and a comment that says "Block rules created 2026.06.02".  Then include all the rules corresponding to proposals for "block" rules that were accepted with no notes.
+* Then add a blank line, and a comment that says "Allow rules created 2026.06.02".  Then include all the rules corresponding to proposals for "allow" rules that were accepted with no notes.
+
+Before making any changes to the file, generate all the rule strings and double-check that there are no rules being created that are literally duplicates of other rules.  If there are, stop and ask me about them.  There may be cases where this could have happened, but I can't think of any right now, so if this happened, I want to talk to you about it.
+
+Also update the README with a new section about how this part of the process works, e.g. if you write one or more scripts to handle this part of the process, mention them in the README.
